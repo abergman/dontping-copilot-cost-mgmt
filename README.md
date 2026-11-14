@@ -21,6 +21,10 @@ An [MCP](https://modelcontextprotocol.io) server for the **Microsoft 365 Copilot
 
 ## Quick start
 
+**Claude Desktop (easiest):** install the prebuilt **Desktop Extension** — drag `…-<version>.mcpb` into **Settings → Extensions**, enter your Entra tenant/client ID in the form, and sign in from the chat with `start_login`. No terminal, no JSON. Build it yourself with `bash scripts/pack-mcpb.sh`.
+
+**From source:**
+
 ```bash
 npm install
 npm run build

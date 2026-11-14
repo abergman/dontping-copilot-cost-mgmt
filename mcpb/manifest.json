@@ -1,0 +1,55 @@
+{
+  "manifest_version": "0.3",
+  "name": "copilot-cost-management",
+  "display_name": "Copilot Cost Management",
+  "version": "0.3.0",
+  "description": "Govern and observe Microsoft 365 Copilot credit consumption via the Copilot Cost Management API.",
+  "long_description": "An MCP server for the Microsoft 365 Copilot Cost Management API (Microsoft Graph beta). Read tenant and per-user credit balances, manage spending policies and their services/alerts, review credit requests, and pull usage reports by user, group, service, and funding class. Sign in from the chat with the start_login tool — no terminal required.",
+  "author": {
+    "name": "DontPing"
+  },
+  "license": "MIT",
+  "keywords": ["microsoft-365", "copilot", "cost-management", "finops", "microsoft-graph"],
+  "server": {
+    "type": "node",
+    "entry_point": "server/index.js",
+    "mcp_config": {
+      "command": "node",
+      "args": ["${__dirname}/server/index.js"],
+      "env": {
+        "AZURE_TENANT_ID": "${user_config.tenant_id}",
+        "AZURE_CLIENT_ID": "${user_config.client_id}",
+        "AZURE_CLIENT_SECRET": "${user_config.client_secret}",
+        "COPILOT_COST_MGMT_READONLY": "${user_config.read_only}"
+      }
+    }
+  },
+  "user_config": {
+    "tenant_id": {
+      "type": "string",
+      "title": "Microsoft Entra tenant ID",
+      "description": "Directory (tenant) ID (GUID) of your Microsoft 365 tenant.",
+      "required": true
+    },
+    "client_id": {
+      "type": "string",
+      "title": "App (client) ID",
+      "description": "Application (client) ID of your Microsoft Entra app registration.",
+      "required": true
+    },
+    "client_secret": {
+      "type": "string",
+      "title": "Client secret (optional)",
+      "description": "Only for app-only auth (limited to balance + usage reports). Leave blank to sign in interactively with the start_login tool, which unlocks the full API.",
+      "sensitive": true,
+      "required": false
+    },
+    "read_only": {
+      "type": "boolean",
+      "title": "Read-only mode",
+      "description": "Expose only read tools — no creating/updating/deleting policies and no approving/rejecting credit requests.",
+      "default": false,
+      "required": false
+    }
+  }
+}

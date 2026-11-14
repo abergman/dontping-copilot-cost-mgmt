@@ -58,12 +58,25 @@ This gives the server a **tenant ID** and **client ID** to sign in with. Pick th
 
 ---
 
-## 2. Install the package
+## 2. Install — choose one path
 
-You were given a file like `dontping-copilot-cost-management-mcp-0.1.0.tgz`. Install it globally:
+### Path A (easiest): Claude Desktop Extension (`.mcpb`) — no terminal
+
+You were given a file like `dontping-copilot-cost-management-mcp-0.3.0.mcpb`.
+
+1. Open **Claude Desktop → Settings → Extensions**.
+2. **Drag the `.mcpb` file** into that window (or use "Install extension" and pick the file).
+3. In the form that appears, fill in **Microsoft Entra tenant ID** and **App (client) ID** (from step 1). Leave **Client secret** blank for interactive sign-in (full access); tick **Read-only mode** if you only want read tools. Click **Install / Save**.
+4. That's it — no npm, no JSON, no PATH issues. The tools appear in Claude. Sign in by asking Claude to run **`start_login`** (see §3/§4 below).
+
+To update later, install the newer `.mcpb` the same way; to remove it, use the Extensions page.
+
+### Path B: global npm install (CLI / Claude Code)
+
+Install the `.tgz` globally to get the `copilot-cost-management-mcp` command:
 
 ```bash
-npm install -g ./dontping-copilot-cost-management-mcp-0.1.0.tgz
+npm install -g ./dontping-copilot-cost-management-mcp-0.3.0.tgz
 ```
 
 This adds the `copilot-cost-management-mcp` command. Confirm:
@@ -72,11 +85,13 @@ This adds the `copilot-cost-management-mcp` command. Confirm:
 copilot-cost-management-mcp --version
 ```
 
-> Prefer not to install globally? You can run it with `npx ./dontping-copilot-cost-management-mcp-0.1.0.tgz` or point your client's `command` at `node /path/to/unpacked/dist/index.js`.
+> Prefer not to install globally? You can run it with `npx ./dontping-copilot-cost-management-mcp-0.3.0.tgz` or point your client's `command` at `node /path/to/unpacked/dist/index.js`.
 
 ---
 
 ## 3. Configure & verify
+
+> **Installed via the Desktop Extension (Path A)?** You already entered your IDs in the install form, and the server is already connected to Claude — skip to §4 and just ask Claude to run `start_login`. The rest of this section is for the npm install (Path B).
 
 Create a `.env` file (anywhere you'll run the check from) with your values:
 
