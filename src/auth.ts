@@ -62,6 +62,17 @@ class StaticTokenCredential implements TokenCredential {
   }
 }
 
+/**
+ * Read an env var for credential use: trim it, and treat an empty value — or an
+ * unexpanded "${...}" template (e.g. a blank optional field substituted by a
+ * Desktop Extension config form) — as absent.
+ */
+function cleanEnv(value: string | undefined): string | undefined {
+  const v = value?.trim();
+  if (!v || v.includes("${")) return undefined;
+  return v;
+}
+
 function normalizeScopes(scopes: string | string[]): string[] {
   const arr = Array.isArray(scopes) ? scopes : [scopes];
   return arr.flatMap((s) => s.split(/\s+/)).filter(Boolean);
@@ -226,10 +237,13 @@ export interface ResolvedAuth {
 }
 
 export function resolveCredential(config: Config): ResolvedAuth {
-  const token = process.env.GRAPH_ACCESS_TOKEN?.trim();
-  const tenantId = process.env.AZURE_TENANT_ID?.trim();
-  const clientId = process.env.AZURE_CLIENT_ID?.trim();
-  const clientSecret = process.env.AZURE_CLIENT_SECRET?.trim();
+  const token = cleanEnv(process.env.GRAPH_ACCESS_TOKEN);
+  const tenantId = cleanEnv(process.env.AZURE_TENANT_ID);
+  const clientId = cleanEnv(process.env.AZURE_CLIENT_ID);
+  // A blank optional secret — or an unexpanded "${...}" template left by a
+  // Desktop Extension config form — must NOT force app-only mode. Treat it as
+  // absent so auth falls back to the (full-access) device-code flow.
+  const clientSecret = cleanEnv(process.env.AZURE_CLIENT_SECRET);
 
   if (token) {
     return {
