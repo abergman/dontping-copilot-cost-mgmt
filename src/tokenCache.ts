@@ -16,11 +16,12 @@ import { dirname, join } from "node:path";
 import type { ICachePlugin, TokenCacheContext } from "@azure/msal-node";
 import type { Config } from "./config.js";
 
-/** Resolve the cache file path for a given client id. */
-export function resolveCacheFile(config: Config, clientId: string): string {
+const safe = (s: string) => s.replace(/[^a-zA-Z0-9._-]/g, "_");
+
+/** Resolve the cache file path for a given tenant + client id. */
+export function resolveCacheFile(config: Config, tenantId: string, clientId: string): string {
   if (config.tokenCacheFile) return config.tokenCacheFile;
-  const safeClient = clientId.replace(/[^a-zA-Z0-9._-]/g, "_");
-  return join(config.cacheDir, `token-cache-${safeClient}.json`);
+  return join(config.cacheDir, `token-cache-${safe(tenantId)}-${safe(clientId)}.json`);
 }
 
 /** Build an MSAL cache plugin backed by the given file. */

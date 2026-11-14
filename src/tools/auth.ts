@@ -1,53 +1,59 @@
 /**
- * In-chat authentication tools for the delegated device-code flow.
+ * In-chat authentication tools, operating on the ACTIVE tenant.
  *
- *   start_login         → begin device-code sign-in; returns a URL + code
- *   check_login_status  → report whether we're signed in (and any pending login)
- *   sign_out            → clear the cached token
+ *   start_login         → begin device-code sign-in for the active tenant
+ *   check_login_status  → sign-in status of the active tenant
+ *   sign_out            → clear the active tenant's cached token
  *
- * These are registered only when the server is using device-code auth; for
- * static-token or client-credentials auth there's nothing to sign in to.
+ * Login applies to device-code tenants; for app-only / static-token tenants the
+ * tools report that interactive sign-in isn't applicable.
  */
 
 import { PersistentDeviceCodeCredential } from "../auth.js";
 import type { ToolContext } from "./context.js";
 import { handle, ok } from "./helpers.js";
 
-export function registerAuthTools({ server, auth, scope }: ToolContext): void {
-  const cred = auth.credential;
-  if (!(cred instanceof PersistentDeviceCodeCredential)) return;
-
+export function registerAuthTools({ server, manager, scope }: ToolContext): void {
   server.registerTool(
     "start_login",
     {
-      title: "Sign in to Microsoft (device code)",
+      title: "Sign in to Microsoft (active tenant)",
       description:
-        "Begin interactive Microsoft sign-in for this server. Returns a verification URL and a " +
-        "short code: open the URL in a browser, enter the code, and complete sign-in with an admin " +
-        "account. Sign-in finishes in the background and the token is cached for reuse. After you " +
-        "sign in, retry your request (or call check_login_status). If already signed in, this is a " +
-        "no-op.",
+        "Begin interactive Microsoft sign-in for the ACTIVE tenant. Returns a verification URL and " +
+        "a short code: open the URL, enter the code, and sign in with an admin of that tenant. The " +
+        "token is cached per tenant and reused. Switch tenants with use_tenant first if needed. " +
+        "No-op if already signed in; not applicable for app-only/static-token tenants.",
       inputSchema: {},
       annotations: { readOnlyHint: false, openWorldHint: true },
     },
     () =>
       handle(async () => {
+        const resolved = manager.activeResolved();
+        const tenant = manager.activeId();
+        if (!(resolved.credential instanceof PersistentDeviceCodeCredential)) {
+          return ok(
+            { tenant, mode: resolved.mode },
+            `Active tenant (${tenant}) uses ${resolved.mode} auth — interactive login isn't applicable.`,
+          );
+        }
+        const cred = resolved.credential;
         const who = await cred.signedInAs();
         if (who) {
           return ok(
-            { signedIn: true, username: who },
-            `Already signed in as ${who}. Use sign_out to switch accounts.`,
+            { tenant, signedIn: true, username: who },
+            `Already signed in as ${who} on tenant ${tenant}. Use sign_out to switch accounts.`,
           );
         }
         const { prompt, alreadyPending } = await cred.beginLogin(scope);
         return ok(
           {
+            tenant,
             verificationUri: prompt.verificationUri,
             userCode: prompt.userCode,
             instructions: prompt.message,
             alreadyPending,
           },
-          `To sign in:\n  1. Open ${prompt.verificationUri}\n  2. Enter the code: ${prompt.userCode}\n  3. Sign in with an admin account.\n\nThen retry your request, or call check_login_status to confirm.`,
+          `To sign in to tenant ${tenant}:\n  1. Open ${prompt.verificationUri}\n  2. Enter the code: ${prompt.userCode}\n  3. Sign in with an admin account.\n\nThen retry your request, or call check_login_status.`,
         );
       }),
   );
@@ -55,41 +61,54 @@ export function registerAuthTools({ server, auth, scope }: ToolContext): void {
   server.registerTool(
     "check_login_status",
     {
-      title: "Check sign-in status",
+      title: "Check sign-in status (active tenant)",
       description:
-        "Report whether the server is signed in to Microsoft, the signed-in username, whether a " +
-        "device-code login is still pending, and the outcome of the last login attempt.",
+        "Report whether the active tenant is signed in, the username, whether a device-code login is " +
+        "pending, and the last login outcome.",
       inputSchema: {},
       annotations: { readOnlyHint: true, openWorldHint: true },
     },
     () =>
       handle(async () => {
-        const status = await cred.loginStatus();
+        const resolved = manager.activeResolved();
+        const tenant = manager.activeId();
+        if (!(resolved.credential instanceof PersistentDeviceCodeCredential)) {
+          return ok(
+            { tenant, mode: resolved.mode, signedIn: resolved.mode !== "static-token" ? "n/a (app-only)" : "n/a" },
+            `Active tenant (${tenant}) uses ${resolved.mode} auth; no interactive sign-in state.`,
+          );
+        }
+        const status = await resolved.credential.loginStatus();
         const note = status.signedIn
-          ? `Signed in as ${status.username}.`
+          ? `Tenant ${tenant}: signed in as ${status.username}.`
           : status.pending
-            ? "A sign-in is pending — finish it in your browser, then retry."
-            : "Not signed in. Call start_login to begin.";
-        return ok(status, note);
+            ? `Tenant ${tenant}: sign-in pending — finish it in your browser, then retry.`
+            : `Tenant ${tenant}: not signed in. Call start_login.`;
+        return ok({ tenant, ...status }, note);
       }),
   );
 
   server.registerTool(
     "sign_out",
     {
-      title: "Sign out (clear cached token)",
+      title: "Sign out of the active tenant",
       description:
-        "Remove this server's cached Microsoft token. The next request will require a fresh " +
-        "start_login. Use this to switch accounts.",
+        "Remove the active tenant's cached Microsoft token. The next request needs a fresh " +
+        "start_login. Use this to switch accounts within a tenant.",
       inputSchema: {},
       annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: true },
     },
     () =>
       handle(async () => {
-        const removed = await cred.logout();
+        const resolved = manager.activeResolved();
+        const tenant = manager.activeId();
+        if (!(resolved.credential instanceof PersistentDeviceCodeCredential)) {
+          return ok({ tenant, mode: resolved.mode }, `Active tenant (${tenant}) has no cached token to remove.`);
+        }
+        const removed = await resolved.credential.logout();
         return ok(
-          { signedOut: true, cacheRemoved: removed },
-          removed ? "Signed out — cached token removed." : "No cached token to remove.",
+          { tenant, signedOut: true, cacheRemoved: removed },
+          removed ? `Signed out of tenant ${tenant}.` : `No cached token for tenant ${tenant}.`,
         );
       }),
   );

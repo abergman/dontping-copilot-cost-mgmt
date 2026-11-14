@@ -4,7 +4,7 @@
   "display_name": "Copilot Cost Management",
   "version": "0.3.0",
   "description": "Govern and observe Microsoft 365 Copilot credit consumption via the Copilot Cost Management API.",
-  "long_description": "An MCP server for the Microsoft 365 Copilot Cost Management API (Microsoft Graph beta). Read tenant and per-user credit balances, manage spending policies and their services/alerts, review credit requests, and pull usage reports by user, group, service, and funding class. Sign in from the chat with the start_login tool — no terminal required.",
+  "long_description": "An MCP server for the Microsoft 365 Copilot Cost Management API (Microsoft Graph beta). Read tenant and per-user credit balances, manage spending policies and their services/alerts, review credit requests, and pull usage reports by user, group, service, and funding class. Multi-tenant: register multiple tenants and switch between them from the chat (list_tenants / add_tenant / use_tenant). Sign in from the chat with the start_login tool — no terminal required.",
   "author": {
     "name": "DontPing"
   },
@@ -27,14 +27,14 @@
   "user_config": {
     "tenant_id": {
       "type": "string",
-      "title": "Microsoft Entra tenant ID",
-      "description": "Directory (tenant) ID (GUID) of your Microsoft 365 tenant.",
-      "required": true
+      "title": "Default tenant ID (optional)",
+      "description": "Directory (tenant) ID (GUID) to start with. Optional — you can add more tenants from the chat with add_tenant and switch with use_tenant.",
+      "required": false
     },
     "client_id": {
       "type": "string",
       "title": "App (client) ID",
-      "description": "Application (client) ID of your Microsoft Entra app registration.",
+      "description": "Application (client) ID of your Microsoft Entra app registration, used for all tenants. For multi-tenant use, register a multi-tenant app and have each customer tenant consent to it.",
       "required": true
     },
     "client_secret": {

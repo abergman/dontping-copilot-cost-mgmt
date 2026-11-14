@@ -91,6 +91,25 @@ See [`.env.example`](./.env.example) for every variable, plus optional overrides
 
 Each tool's description names the least-privileged scope it needs.
 
+## Multiple tenants
+
+The server manages any number of Microsoft 365 tenants and runs every tool against the **active** tenant. You manage the list from the chat:
+
+- `list_tenants` / `current_tenant` — see what's registered and which is active
+- `add_tenant` — register a tenant by directory (tenant) ID, with an optional label and an optional per-tenant client ID
+- `use_tenant` — switch the active tenant
+- `remove_tenant` — unregister one
+- then `start_login` signs in to the **active** tenant (each tenant keeps its own cached token)
+
+Two app models are supported:
+
+- **One multi-tenant app (recommended):** register a single multi-tenant Entra app, set `AZURE_CLIENT_ID`, and have each customer tenant's admin consent to it. The same client ID works for every tenant.
+- **A separate app per tenant:** pass a per-tenant `clientId` to `add_tenant`; it overrides the shared one for that tenant.
+
+Auth per tenant follows the usual rules: with `AZURE_CLIENT_SECRET` set, tenants use **app-only** (unattended, but limited to balances + usage reports — the rest of the API is delegated-only); otherwise each tenant uses **device-code** (sign in per tenant, full access). The registry and per-tenant token caches live under the cache dir (`~/.copilot-cost-management-mcp/`).
+
+CLI equivalents: `copilot-cost-management-mcp tenants`, `… login [tenantId]`, `… --check [tenantId]`.
+
 ## Read-only mode
 
 Set `COPILOT_COST_MGMT_READONLY=true` to register **only** read tools — no create/update/delete, no credit-request decisions, and the raw tool is limited to `GET`. Ideal for handing an agent observability without the ability to change anything.

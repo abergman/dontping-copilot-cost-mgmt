@@ -236,45 +236,70 @@ export interface ResolvedAuth {
   describe: string;
 }
 
-export function resolveCredential(config: Config): ResolvedAuth {
-  const token = cleanEnv(process.env.GRAPH_ACCESS_TOKEN);
-  const tenantId = cleanEnv(process.env.AZURE_TENANT_ID);
-  const clientId = cleanEnv(process.env.AZURE_CLIENT_ID);
-  // A blank optional secret — or an unexpanded "${...}" template left by a
-  // Desktop Extension config form — must NOT force app-only mode. Treat it as
-  // absent so auth falls back to the (full-access) device-code flow.
-  const clientSecret = cleanEnv(process.env.AZURE_CLIENT_SECRET);
+/** Shared (tenant-independent) auth material read from the environment. */
+export interface BaseAuth {
+  staticToken?: string;
+  clientId?: string;
+  clientSecret?: string;
+  /** Seed tenant from AZURE_TENANT_ID, used to pre-populate the registry. */
+  defaultTenantId?: string;
+}
 
-  if (token) {
+export function readBaseAuth(): BaseAuth {
+  return {
+    // A blank optional secret — or an unexpanded "${...}" template left by a
+    // Desktop Extension config form — must NOT force app-only mode.
+    staticToken: cleanEnv(process.env.GRAPH_ACCESS_TOKEN),
+    clientId: cleanEnv(process.env.AZURE_CLIENT_ID),
+    clientSecret: cleanEnv(process.env.AZURE_CLIENT_SECRET),
+    defaultTenantId: cleanEnv(process.env.AZURE_TENANT_ID),
+  };
+}
+
+/**
+ * Build the credential for a specific tenant from the shared base auth.
+ * - static token  → single-tenant bearer (tenant id is informational)
+ * - client secret → app-only (per tenant via that tenant's authority)
+ * - else          → persistent device-code (per tenant), full access
+ *
+ * `clientIdOverride` supports the "separate app per tenant" model.
+ */
+export function buildTenantCredential(opts: {
+  tenantId: string;
+  base: BaseAuth;
+  config: Config;
+  clientIdOverride?: string;
+}): ResolvedAuth {
+  const { tenantId, base, config, clientIdOverride } = opts;
+
+  if (base.staticToken) {
     return {
-      credential: new StaticTokenCredential(token),
+      credential: new StaticTokenCredential(base.staticToken),
       mode: "static-token",
       describe: "static bearer token (GRAPH_ACCESS_TOKEN)",
     };
   }
 
-  if (tenantId && clientId && clientSecret) {
+  const clientId = clientIdOverride ?? base.clientId;
+  if (!clientId) {
+    throw new Error(
+      "No client ID configured. Set AZURE_CLIENT_ID (shared app), or add the tenant " +
+        "with a per-tenant client id.",
+    );
+  }
+
+  if (base.clientSecret) {
     return {
-      credential: new ClientSecretCredential(tenantId, clientId, clientSecret),
+      credential: new ClientSecretCredential(tenantId, clientId, base.clientSecret),
       mode: "client-credentials",
       describe: `client credentials (app ${clientId} in tenant ${tenantId})`,
     };
   }
 
-  if (tenantId && clientId) {
-    const cacheFile = resolveCacheFile(config, clientId);
-    return {
-      credential: new PersistentDeviceCodeCredential(tenantId, clientId, cacheFile),
-      mode: "device-code",
-      describe: `device code (app ${clientId} in tenant ${tenantId}); token cache: ${cacheFile}`,
-    };
-  }
-
-  throw new Error(
-    "No Microsoft Graph credentials found. Set one of:\n" +
-      "  • GRAPH_ACCESS_TOKEN (raw bearer token), or\n" +
-      "  • AZURE_TENANT_ID + AZURE_CLIENT_ID + AZURE_CLIENT_SECRET (app-only), or\n" +
-      "  • AZURE_TENANT_ID + AZURE_CLIENT_ID (delegated device-code sign-in).\n" +
-      "See .env.example for details.",
-  );
+  const cacheFile = resolveCacheFile(config, tenantId, clientId);
+  return {
+    credential: new PersistentDeviceCodeCredential(tenantId, clientId, cacheFile),
+    mode: "device-code",
+    describe: `device code (app ${clientId} in tenant ${tenantId}); token cache: ${cacheFile}`,
+  };
 }
