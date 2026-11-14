@@ -4,6 +4,13 @@ This folder is a portable plugin source for **Microsoft 365 Copilot Cowork**. It
 
 > Cowork is a cloud service: it can't reach `localhost` directly, and it requires an HTTPS connector URL. A dev tunnel terminates TLS and relays to your local HTTP server — Microsoft's documented way to test a local MCP server with Cowork.
 
+## What's in this folder
+
+- `manifest.json` — M365 app manifest (v1.29) with the MCP connector (`agentConnectors`) and the bundled skill.
+- `skills/configure-cost-management/SKILL.md` — a Cowork skill that guides setting up cost governance (spending policies, threshold alerts, credit-request triage) using the tools. It appears in Cowork via `/`.
+- `color.png` / `outline.png` — placeholder icons (replace before store submission).
+- `.claude-plugin/plugin.json` + `.mcp.json` — portable source for the Agents Toolkit import path (Option B below).
+
 ## Prerequisites
 
 - The server installed (`npm install -g ./dontping-copilot-cost-management-mcp-<version>.tgz`).
@@ -26,7 +33,15 @@ This folder is a portable plugin source for **Microsoft 365 Copilot Cowork**. It
 
 3. **Set the URL** in [`.mcp.json`](./.mcp.json), replacing `REPLACE-WITH-YOUR-DEVTUNNEL-URL/mcp`.
 
-4. **Build the Cowork app package** from this folder (Agents Toolkit converts the `.claude-plugin/plugin.json` + `.mcp.json` into an M365 app package, generating placeholder icons). Because the tunnel URL is HTTPS, pass `--default-auth-type None` so the connector doesn't require OAuth (the server is unauthenticated for local testing):
+4. **Build the Cowork app package (`.zip`).** Two options:
+
+   **Option A — no extra tooling (recommended for local):** the build script assembles `manifest.json` + icons + `skills/` and bakes in your URL.
+   ```bash
+   COWORK_MCP_URL="https://<tunnel>/mcp" bash ../scripts/pack-cowork-plugin.sh
+   ```
+   (Or edit `manifest.json`'s `mcpServerUrl` and run it with no env var.) Produces `dontping-copilot-cost-management-cowork-plugin-<version>.zip`.
+
+   **Option B — Microsoft Agents Toolkit** (converts the `.claude-plugin/plugin.json` + `.mcp.json` source, generating icons). Pass `--default-auth-type None` since the tunnel URL is HTTPS but the server is unauthenticated for local testing:
    ```bash
    atk import openplugin --path . \
      --privacy-url https://example.com/privacy \

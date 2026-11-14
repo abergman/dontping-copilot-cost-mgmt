@@ -201,8 +201,12 @@ npm run typecheck   # tsc --noEmit
 npm run build       # compile to dist/
 npm run dev         # watch mode (tsx)
 npm start           # run the built server
-bash scripts/pack-mcpb.sh   # build the .mcpb Desktop Extension bundle
+bash scripts/pack-mcpb.sh            # build the .mcpb Desktop Extension bundle
+bash scripts/cowork-serve.sh         # run HTTP mode + a dev tunnel for Copilot
+COWORK_MCP_URL=… bash scripts/pack-cowork-plugin.sh   # build the Cowork plugin .zip
 ```
+
+**Skills:** `cowork-plugin/skills/configure-cost-management` is a Cowork skill (shipped in the plugin) that guides cost-governance setup via the tools. `.claude/skills/connect-cowork` is a Claude Code skill that walks through connecting this server to Copilot Cowork/Studio.
 
 ### Releases
 

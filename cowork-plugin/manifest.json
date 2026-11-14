@@ -1,0 +1,43 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/teams/v1.29/MicrosoftTeams.schema.json",
+  "manifestVersion": "1.29",
+  "version": "0.5.0",
+  "id": "14c95586-a797-4cab-a69f-ed162e1bd29b",
+  "developer": {
+    "name": "Andreas Bergman",
+    "websiteUrl": "https://github.com/abergman/dontping-copilot-cost-mgmt",
+    "privacyUrl": "https://example.com/privacy",
+    "termsOfUseUrl": "https://example.com/terms"
+  },
+  "name": {
+    "short": "Copilot Cost Mgmt",
+    "full": "Copilot Cost Management for Cowork"
+  },
+  "description": {
+    "short": "Govern and observe Microsoft 365 Copilot credit consumption.",
+    "full": "Connects Copilot Cowork to the Microsoft 365 Copilot Cost Management API: read tenant and per-user credit balances, manage spending policies and their services and alerts, review and decide credit requests, and pull usage reports by user, group, service, and funding class. All amounts are Copilot credits."
+  },
+  "icons": {
+    "color": "color.png",
+    "outline": "outline.png"
+  },
+  "accentColor": "#2B579A",
+  "agentSkills": [
+    { "folder": "./skills/configure-cost-management" }
+  ],
+  "agentConnectors": [
+    {
+      "id": "copilot-cost-management",
+      "displayName": "Copilot Cost Management",
+      "description": "Balances, spending policies, credit requests, and usage reports over the Copilot Cost Management API.",
+      "toolSource": {
+        "remoteMcpServer": {
+          "mcpServerUrl": "https://REPLACE-WITH-YOUR-DEVTUNNEL-URL/mcp",
+          "authorization": {
+            "type": "None"
+          }
+        }
+      }
+    }
+  ]
+}

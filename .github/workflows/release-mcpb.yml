@@ -56,11 +56,17 @@ jobs:
         if: steps.check.outputs.exists == 'false'
         run: npm ci
 
-      - name: Build artifacts (.tgz + .mcpb)
+      - name: Build artifacts (.tgz + .mcpb + Cowork plugin .zip)
         if: steps.check.outputs.exists == 'false'
+        env:
+          # Set repo variable COWORK_MCP_URL to your hosted .../mcp endpoint to
+          # bake it into the released Cowork package; otherwise a placeholder is
+          # used and the package must be edited before upload.
+          COWORK_MCP_URL: ${{ vars.COWORK_MCP_URL }}
         run: |
           npm pack
           bash scripts/pack-mcpb.sh
+          bash scripts/pack-cowork-plugin.sh
 
       - name: Create GitHub Release
         if: steps.check.outputs.exists == 'false'
@@ -71,6 +77,7 @@ jobs:
           gh release create "v$V" \
             "dontping-copilot-cost-management-mcp-$V.mcpb" \
             "dontping-copilot-cost-management-mcp-$V.tgz" \
+            "dontping-copilot-cost-management-cowork-plugin-$V.zip" \
             --title "v$V" \
             --generate-notes \
             --target "${{ github.sha }}"
