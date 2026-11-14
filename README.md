@@ -15,9 +15,11 @@ An [MCP](https://modelcontextprotocol.io) server for the **Microsoft 365 Copilot
 | **Policy alerts** | `get_policy_alert_settings`, `update_policy_alert_settings`, `delete_policy_alert_settings`, `list_policy_alert_recipients`, `add_policy_alert_recipient`, `remove_policy_alert_recipient` |
 | **Credit requests** | `list_credit_requests`, `get_credit_request`, `decide_credit_request`, `batch_decide_credit_requests` |
 | **Usage reports** | `list_user_usage_records`, `get_user_usage_record`, `list_group_usage_records`, `get_group_usage_record`, `list_service_usage_records`, `get_service_usage_record`, `list_funding_usage_records`, `get_user_usage_detail`, `list_user_usage_service_details`, `list_user_usage_session_details` |
+| **Tenants** | `list_tenants`, `current_tenant`, `add_tenant`, `use_tenant`, `remove_tenant` |
+| **Authentication** | `start_login`, `check_login_status`, `sign_out` |
 | **Escape hatch** | `cost_management_request` (raw request, e.g. to follow a `nextLink` or reach a brand-new beta endpoint) |
 
-37 tools in all (24 in read-only mode).
+45 tools in all (32 in read-only mode). All of the balance/policy/credit/usage tools run against the **active tenant** (see [Multiple tenants](#multiple-tenants)).
 
 ## Quick start
 
@@ -93,22 +95,60 @@ Each tool's description names the least-privileged scope it needs.
 
 ## Multiple tenants
 
-The server manages any number of Microsoft 365 tenants and runs every tool against the **active** tenant. You manage the list from the chat:
+The server manages any number of Microsoft 365 tenants and runs every tool against the **active** tenant. The tenant list and a separate token cache per tenant are persisted under the cache dir (`~/.copilot-cost-management-mcp/`), so it all survives restarts.
+
+### Which model to choose
+
+|  | One multi-tenant app *(recommended)* | A separate app per tenant |
+| --- | --- | --- |
+| Entra registrations | one, shared | one per customer tenant |
+| `AZURE_CLIENT_ID` | the shared app | a default (optional); override per tenant |
+| Onboarding a tenant | that tenant's admin consents once | register + consent in that tenant |
+| Best for | MSPs / many tenants | strict per-customer isolation |
+
+Auth per tenant: with **`AZURE_CLIENT_SECRET` set**, tenants use **app-only** — unattended, but limited to balances + usage reports (the rest of the API is delegated-only). **Without a secret**, each tenant uses **device-code** — you sign in per tenant, with full access. This matches most management workflows.
+
+### Setup — one multi-tenant app (recommended)
+
+1. **Register the app as multi-tenant.** In the [Entra admin center](https://entra.microsoft.com) of *your own* tenant → **App registrations → New registration**. Under **Supported account types**, choose **Accounts in any organizational directory (multitenant)**. Leave the redirect URI empty. Register, and copy the **Application (client) ID** — this one ID is used for every customer tenant.
+2. **Enable device-code** (for full-access management): **Authentication → Allow public client flows → Yes**.
+3. **Add API permissions** (see [Permission scopes](#permission-scopes)) as **delegated** (for device-code) and/or **application** (for app-only). You consent to these in *your* tenant; each customer tenant consents separately in the next step.
+4. **Onboard each customer tenant** — a Global/Billing Administrator of that tenant grants consent once, via this URL (substitute the customer's tenant ID or domain and your client ID):
+
+   ```
+   https://login.microsoftonline.com/<customer-tenant-id>/adminconsent?client_id=<your-client-id>
+   ```
+
+   (For device-code, an admin can alternatively just consent interactively the first time they sign in with `start_login`.)
+5. **Point the server at the shared app.** In the Desktop Extension form set **App (client) ID** to your client id and leave **Default tenant ID** blank (or set one to seed the first tenant). For the npm/CLI path, set `AZURE_CLIENT_ID` (and optionally `AZURE_CLIENT_SECRET` for app-only).
+6. **Register tenants and sign in — from the chat:**
+
+   ```text
+   add_tenant   { "tenantId": "<contoso-guid>", "label": "Contoso" }
+   start_login                      # opens the sign-in URL + code for Contoso
+   add_tenant   { "tenantId": "<fabrikam-guid>", "label": "Fabrikam" }
+   start_login                      # sign in to Fabrikam
+   ```
+
+   Each sign-in is cached separately. (App-only needs no `start_login`.)
+
+### Setup — a separate app per tenant
+
+Register an app in each customer tenant as usual, then register each with its own client id:
+
+```text
+add_tenant { "tenantId": "<contoso-guid>", "label": "Contoso", "clientId": "<contoso-app-id>" }
+```
+
+The per-tenant `clientId` overrides the shared `AZURE_CLIENT_ID` for that tenant.
+
+### Day-to-day
 
 - `list_tenants` / `current_tenant` — see what's registered and which is active
-- `add_tenant` — register a tenant by directory (tenant) ID, with an optional label and an optional per-tenant client ID
-- `use_tenant` — switch the active tenant
-- `remove_tenant` — unregister one
-- then `start_login` signs in to the **active** tenant (each tenant keeps its own cached token)
+- `use_tenant { "tenantId": "<guid>" }` — switch; subsequent tools run against it
+- `remove_tenant` — unregister (sign out first with `sign_out` to clear its token)
 
-Two app models are supported:
-
-- **One multi-tenant app (recommended):** register a single multi-tenant Entra app, set `AZURE_CLIENT_ID`, and have each customer tenant's admin consent to it. The same client ID works for every tenant.
-- **A separate app per tenant:** pass a per-tenant `clientId` to `add_tenant`; it overrides the shared one for that tenant.
-
-Auth per tenant follows the usual rules: with `AZURE_CLIENT_SECRET` set, tenants use **app-only** (unattended, but limited to balances + usage reports — the rest of the API is delegated-only); otherwise each tenant uses **device-code** (sign in per tenant, full access). The registry and per-tenant token caches live under the cache dir (`~/.copilot-cost-management-mcp/`).
-
-CLI equivalents: `copilot-cost-management-mcp tenants`, `… login [tenantId]`, `… --check [tenantId]`.
+CLI equivalents: `copilot-cost-management-mcp tenants`, `… login [tenantId]`, `… logout [tenantId]`, `… --check [tenantId]`.
 
 ## Read-only mode
 
