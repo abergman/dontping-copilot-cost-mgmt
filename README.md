@@ -28,6 +28,18 @@ npm run build
 
 Then point your MCP client at `node dist/index.js` (stdio transport) with credentials in the environment. Nothing listens on a port — it speaks JSON-RPC over stdin/stdout, and all logs go to stderr.
 
+### CLI commands
+
+```
+copilot-cost-management-mcp            run the MCP server over stdio (default)
+copilot-cost-management-mcp login      device-code sign-in; caches the token (device-code auth)
+copilot-cost-management-mcp logout     remove the cached token
+copilot-cost-management-mcp --check    verify credentials + reach the API, then exit
+copilot-cost-management-mcp --help     full usage and env vars
+```
+
+See **[INSTALL.md](./INSTALL.md)** for the full local walkthrough (Entra app registration → install → sign in → connect to Claude).
+
 ### Claude Desktop / Claude Code
 
 Add to your MCP config (e.g. `claude_desktop_config.json`):
@@ -54,7 +66,7 @@ The server talks to Microsoft Graph and needs a token carrying the relevant `Cop
 
 1. **Raw bearer token** — `GRAPH_ACCESS_TOKEN`. Easiest for testing; not refreshed, so it expires in ~an hour.
 2. **App-only (client credentials)** — `AZURE_TENANT_ID` + `AZURE_CLIENT_ID` + `AZURE_CLIENT_SECRET`. Only works for the operations that support **application** permissions: `get_tenant_credit_balance` and the service/funding usage reports.
-3. **Delegated (device code)** — `AZURE_TENANT_ID` + `AZURE_CLIENT_ID` (no secret). Works for **all** operations (most are delegated-only). On first token use the server prints a device-code prompt to stderr; the signed-in admin must hold the required directory role (Billing/AI/Global Administrator, etc.).
+3. **Delegated (device code, persistent)** — `AZURE_TENANT_ID` + `AZURE_CLIENT_ID` (no secret). Works for **all** operations (most are delegated-only). Sign in once with `copilot-cost-management-mcp login`; the token is cached on disk and reused across restarts (no re-prompting) until the refresh token expires. The signed-in admin must hold the required directory role (Billing/AI/Global Administrator, etc.).
 
 See [`.env.example`](./.env.example) for every variable, plus optional overrides (`GRAPH_BASE_URL`, `GRAPH_API_VERSION`, `GRAPH_SCOPE`).
 

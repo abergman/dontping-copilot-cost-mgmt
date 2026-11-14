@@ -95,14 +95,19 @@ AZURE_CLIENT_SECRET=<your-client-secret>
 
 Optional: add `COPILOT_COST_MGMT_READONLY=true` to expose only read tools.
 
-Now verify everything from that folder:
+**Device code — sign in once:**
+```bash
+copilot-cost-management-mcp login
+```
+A Microsoft sign-in URL + code prints in the terminal; open it, enter the code, sign in. The token is then cached on disk (`~/.copilot-cost-management-mcp/`) and reused across restarts — your MCP client won't prompt again until the refresh token expires.
 
+Then verify (and, for app-only, this is the only step needed):
 ```bash
 copilot-cost-management-mcp --check
 ```
+Success prints your tenant credit balance. A permission error (with a clear code) means sign-in worked but a scope/role is missing — revisit step 1C. If it says "Not signed in", run `login` first.
 
-- **Device code:** a Microsoft sign-in URL + code prints in the terminal; complete it in your browser.
-- Success prints your tenant credit balance. A permission error (with a clear code) means sign-in worked but a scope/role is missing — revisit step 1C.
+To sign out and delete the cached token: `copilot-cost-management-mcp logout`.
 
 ---
 
@@ -129,7 +134,7 @@ copilot-cost-management-mcp --check
 ```
    For app-only, also add `"AZURE_CLIENT_SECRET": "<secret>"`. To keep secrets out of this file, instead set `"COPILOT_COST_MGMT_ENV_FILE": "/absolute/path/to/.env"` and the server will read your `.env`.
 
-3. **Fully quit and reopen Claude Desktop.** The Copilot Cost Management tools now appear in the tool picker.
+3. **Fully quit and reopen Claude Desktop.** The Copilot Cost Management tools now appear in the tool picker. With device-code auth, as long as you ran `login` first, the server picks up the cached token silently — no prompt.
 
 > If `command: "copilot-cost-management-mcp"` isn't found (Claude Desktop may not use your shell's PATH), use the absolute path — run `which copilot-cost-management-mcp` (macOS/Linux) or `where copilot-cost-management-mcp` (Windows) and put that in `command`, or use `"command": "node", "args": ["/full/path/to/dist/index.js"]`.
 
@@ -149,7 +154,9 @@ Then reopen Claude Code.
 
 ## Notes
 
-- **Device-code re-prompts:** the server signs in on each start and doesn't persist the token across restarts, so Claude Desktop will ask you to sign in again after it relaunches the server. For a fully unattended local setup, use app-only auth (accepting its narrower coverage), or keep a terminal instance running.
+- **Sign in once.** The device-code token is cached on disk and refreshed automatically, so you only run `login` again when the refresh token finally expires (or after `logout`). If a tool ever reports "Not signed in", just run `copilot-cost-management-mcp login` again.
+- **Token cache security.** The cache file (`~/.copilot-cost-management-mcp/token-cache-<clientid>.json`) holds refresh tokens in plain text, written owner-only (0600). It is not encrypted at rest — treat it like an SSH private key, and use `logout` to remove it. Override its location with `COPILOT_COST_MGMT_CACHE_DIR` / `COPILOT_COST_MGMT_TOKEN_CACHE`.
+- **Fully unattended?** App-only auth (client secret) never prompts at all — at the cost of narrower coverage (balance + reports only).
 - **Updating:** install the new `.tgz` the same way (`npm install -g ./…tgz`) and restart your client.
 - **Uninstall:** `npm uninstall -g @dontping/copilot-cost-management-mcp`.
 - The underlying API is **beta** and may change.

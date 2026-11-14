@@ -1,6 +1,6 @@
 {
   "name": "@dontping/copilot-cost-management-mcp",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Model Context Protocol server for the Microsoft 365 Copilot Cost Management API — govern and observe tenant consumption of Copilot/AI credits.",
   "license": "MIT",
   "author": "DontPing",
@@ -38,6 +38,7 @@
   ],
   "dependencies": {
     "@azure/identity": "^4.14.1",
+    "@azure/msal-node": "^7.2.2",
     "@modelcontextprotocol/sdk": "^1.32.2",
     "zod": "^3.25.76"
   },

@@ -5,6 +5,9 @@
  * Azure Identity credential chain in {@link ./auth.ts}.
  */
 
+import { homedir } from "node:os";
+import { join } from "node:path";
+
 export interface Config {
   /** Graph host, e.g. https://graph.microsoft.com */
   graphBaseUrl: string;
@@ -14,6 +17,10 @@ export interface Config {
   scope: string;
   /** When true, only read-only tools are exposed. */
   readOnly: boolean;
+  /** Explicit token-cache file path (overrides cacheDir). */
+  tokenCacheFile?: string;
+  /** Directory for the persistent delegated-token cache. */
+  cacheDir: string;
 }
 
 function envFlag(value: string | undefined): boolean {
@@ -26,9 +33,13 @@ export function loadConfig(): Config {
   const apiVersion = (process.env.GRAPH_API_VERSION ?? "beta").replace(/^\/+|\/+$/g, "");
   const scope = process.env.GRAPH_SCOPE ?? "https://graph.microsoft.com/.default";
   const readOnly = envFlag(process.env.COPILOT_COST_MGMT_READONLY);
+  const tokenCacheFile = process.env.COPILOT_COST_MGMT_TOKEN_CACHE?.trim() || undefined;
+  const cacheDir =
+    process.env.COPILOT_COST_MGMT_CACHE_DIR?.trim() ||
+    join(homedir(), ".copilot-cost-management-mcp");
 
-  return { graphBaseUrl, apiVersion, scope, readOnly };
+  return { graphBaseUrl, apiVersion, scope, readOnly, tokenCacheFile, cacheDir };
 }
 
 export const SERVER_NAME = "copilot-cost-management";
-export const SERVER_VERSION = "0.1.0";
+export const SERVER_VERSION = "0.2.0";

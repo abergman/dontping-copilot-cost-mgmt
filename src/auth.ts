@@ -1,32 +1,136 @@
 /**
  * Credential resolution for Microsoft Graph.
  *
- * Three mutually-exclusive strategies are supported, chosen by which
- * environment variables are present (checked in this order):
+ * Strategies, chosen by which environment variables are present (in order):
  *
  *   1. GRAPH_ACCESS_TOKEN                      → static bearer token (no refresh)
  *   2. AZURE_TENANT_ID + AZURE_CLIENT_ID + AZURE_CLIENT_SECRET
  *                                              → client credentials (app-only)
- *   3. AZURE_TENANT_ID + AZURE_CLIENT_ID       → device code (delegated, interactive)
+ *   3. AZURE_TENANT_ID + AZURE_CLIENT_ID       → persistent device-code (delegated)
  *
- * All strategies expose the standard Azure `TokenCredential` surface so the
- * Graph client can treat them uniformly.
+ * The device-code credential (3) is MSAL-backed with a persistent on-disk token
+ * cache, so the user signs in ONCE (via the `login` command) and the token is
+ * reused across restarts. For the running server, token acquisition is SILENT:
+ * if nothing is cached (or it expired), getToken throws NotSignedInError with an
+ * actionable message rather than blocking on an interactive prompt.
  */
 
 import type { AccessToken, TokenCredential, GetTokenOptions } from "@azure/identity";
-import { ClientSecretCredential, DeviceCodeCredential } from "@azure/identity";
+import { ClientSecretCredential } from "@azure/identity";
+import {
+  PublicClientApplication,
+  LogLevel,
+  type AuthenticationResult,
+  type AccountInfo,
+} from "@azure/msal-node";
+import type { Config } from "./config.js";
+import { deleteCacheFile, makeCachePlugin, resolveCacheFile } from "./tokenCache.js";
+
+/** The fields of MSAL's device-code response that we surface to the user. */
+export interface DeviceCodePrompt {
+  userCode: string;
+  verificationUri: string;
+  message: string;
+}
+
+export const NOT_SIGNED_IN =
+  "Not signed in to Microsoft (no cached credentials, or the session expired). " +
+  "Run `copilot-cost-management-mcp login` in a terminal to sign in, then retry.";
+
+/** Thrown by the device-code credential when no usable cached token exists. */
+export class NotSignedInError extends Error {
+  constructor(message: string = NOT_SIGNED_IN) {
+    super(message);
+    this.name = "NotSignedInError";
+  }
+}
 
 /** A fixed, pre-minted bearer token. Does not refresh. */
 class StaticTokenCredential implements TokenCredential {
   constructor(private readonly token: string) {}
-
-  // Expires are unknown for an injected token; report a short horizon so the
-  // Graph client's cache re-reads it rather than trusting it forever.
   async getToken(_scopes: string | string[], _options?: GetTokenOptions): Promise<AccessToken> {
-    return {
-      token: this.token,
-      expiresOnTimestamp: Date.now() + 5 * 60 * 1000,
-    };
+    return { token: this.token, expiresOnTimestamp: Date.now() + 5 * 60 * 1000 };
+  }
+}
+
+function normalizeScopes(scopes: string | string[]): string[] {
+  const arr = Array.isArray(scopes) ? scopes : [scopes];
+  return arr.flatMap((s) => s.split(/\s+/)).filter(Boolean);
+}
+
+/**
+ * Delegated device-code credential with a persistent token cache.
+ * `getToken` is silent-only; `login` performs the interactive device-code flow.
+ */
+export class PersistentDeviceCodeCredential implements TokenCredential {
+  private readonly pca: PublicClientApplication;
+
+  constructor(tenantId: string, clientId: string, readonly cacheFile: string) {
+    this.pca = new PublicClientApplication({
+      auth: {
+        clientId,
+        authority: `https://login.microsoftonline.com/${tenantId}`,
+      },
+      cache: { cachePlugin: makeCachePlugin(cacheFile) },
+      system: {
+        loggerOptions: {
+          // Route MSAL logs to stderr only — stdout is the JSON-RPC channel.
+          loggerCallback: (_level, message) => process.stderr.write(`[msal] ${message}\n`),
+          piiLoggingEnabled: false,
+          logLevel: LogLevel.Error,
+        },
+      },
+    });
+  }
+
+  private async firstAccount(): Promise<AccountInfo | null> {
+    const accounts = await this.pca.getTokenCache().getAllAccounts();
+    return accounts[0] ?? null;
+  }
+
+  /** Silent token acquisition from the cache (refreshing as needed). */
+  async getToken(scopes: string | string[], _options?: GetTokenOptions): Promise<AccessToken> {
+    const account = await this.firstAccount();
+    if (!account) throw new NotSignedInError();
+    try {
+      const result = await this.pca.acquireTokenSilent({
+        account,
+        scopes: normalizeScopes(scopes),
+      });
+      if (!result?.accessToken) throw new NotSignedInError();
+      return {
+        token: result.accessToken,
+        expiresOnTimestamp: result.expiresOn?.getTime() ?? Date.now() + 5 * 60 * 1000,
+      };
+    } catch {
+      // Refresh token missing/expired → interaction required.
+      throw new NotSignedInError();
+    }
+  }
+
+  /** Interactive device-code sign-in; persists the result to the cache. */
+  async login(
+    scopes: string | string[],
+    onPrompt: (info: DeviceCodePrompt) => void,
+  ): Promise<AuthenticationResult | null> {
+    return this.pca.acquireTokenByDeviceCode({
+      scopes: normalizeScopes(scopes),
+      deviceCodeCallback: onPrompt,
+    });
+  }
+
+  /** The signed-in account's username, if any. */
+  async signedInAs(): Promise<string | undefined> {
+    return (await this.firstAccount())?.username;
+  }
+
+  /** Remove cached accounts and delete the cache file. */
+  async logout(): Promise<boolean> {
+    const tc = this.pca.getTokenCache();
+    for (const account of await tc.getAllAccounts()) {
+      await tc.removeAccount(account);
+    }
+    return deleteCacheFile(this.cacheFile);
   }
 }
 
@@ -39,7 +143,7 @@ export interface ResolvedAuth {
   describe: string;
 }
 
-export function resolveCredential(): ResolvedAuth {
+export function resolveCredential(config: Config): ResolvedAuth {
   const token = process.env.GRAPH_ACCESS_TOKEN?.trim();
   const tenantId = process.env.AZURE_TENANT_ID?.trim();
   const clientId = process.env.AZURE_CLIENT_ID?.trim();
@@ -62,18 +166,11 @@ export function resolveCredential(): ResolvedAuth {
   }
 
   if (tenantId && clientId) {
+    const cacheFile = resolveCacheFile(config, clientId);
     return {
-      credential: new DeviceCodeCredential({
-        tenantId,
-        clientId,
-        // Route the prompt to stderr so it never corrupts the stdio JSON-RPC
-        // channel on stdout.
-        userPromptCallback: (info) => {
-          process.stderr.write(`\n[auth] ${info.message}\n`);
-        },
-      }),
+      credential: new PersistentDeviceCodeCredential(tenantId, clientId, cacheFile),
       mode: "device-code",
-      describe: `device code (app ${clientId} in tenant ${tenantId})`,
+      describe: `device code (app ${clientId} in tenant ${tenantId}); token cache: ${cacheFile}`,
     };
   }
 
