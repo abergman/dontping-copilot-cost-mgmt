@@ -1,0 +1,48 @@
+{
+  "name": "@dontping/copilot-cost-management-mcp",
+  "version": "0.1.0",
+  "description": "Model Context Protocol server for the Microsoft 365 Copilot Cost Management API — govern and observe tenant consumption of Copilot/AI credits.",
+  "license": "MIT",
+  "author": "DontPing",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "copilot-cost-management-mcp": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    ".env.example"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "dev": "tsx watch src/index.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "prepare": "npm run build"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "microsoft-graph",
+    "copilot",
+    "cost-management",
+    "finops",
+    "microsoft-365",
+    "copilot-credits"
+  ],
+  "dependencies": {
+    "@azure/identity": "^4.14.1",
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.0"
+  }
+}
