@@ -59,4 +59,4 @@ export function loadConfig(): Config {
 }
 
 export const SERVER_NAME = "copilot-cost-management";
-export const SERVER_VERSION = "0.5.0";
+export const SERVER_VERSION = "0.5.1";
