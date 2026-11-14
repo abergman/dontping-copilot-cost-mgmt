@@ -12,6 +12,7 @@
   "files": [
     "dist",
     "README.md",
+    "INSTALL.md",
     "LICENSE",
     ".env.example"
   ],

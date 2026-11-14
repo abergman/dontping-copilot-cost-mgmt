@@ -75,6 +75,11 @@ export class GraphClient {
     this.versionRoot = `${config.graphBaseUrl}/${config.apiVersion}`;
   }
 
+  /** Force a token acquisition (used by `--check` to trigger interactive sign-in). */
+  async ensureToken(): Promise<void> {
+    await this.getToken();
+  }
+
   /** Acquire a token, reusing the cache until ~2 minutes before expiry. */
   private async getToken(): Promise<string> {
     const now = Date.now();

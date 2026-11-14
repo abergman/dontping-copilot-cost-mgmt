@@ -5,7 +5,7 @@
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { resolveCredential } from "./auth.js";
-import { loadConfig, SERVER_NAME, SERVER_VERSION } from "./config.js";
+import { loadConfig, SERVER_NAME, SERVER_VERSION, type Config } from "./config.js";
 import { GraphClient } from "./graph.js";
 import type { ToolContext } from "./tools/context.js";
 import { registerBalanceTools } from "./tools/balances.js";
@@ -15,16 +15,29 @@ import { registerCreditRequestTools } from "./tools/creditRequests.js";
 import { registerUsageReportTools } from "./tools/usageReports.js";
 import { registerRawTool } from "./tools/raw.js";
 
+export interface ServerContext {
+  client: GraphClient;
+  describeAuth: string;
+  readOnly: boolean;
+  config: Config;
+}
+
 export interface BuiltServer {
   server: McpServer;
   describeAuth: string;
   readOnly: boolean;
 }
 
-export function buildServer(): BuiltServer {
+/** Resolve credentials + config and build the Graph client (no server yet). */
+export function createContext(): ServerContext {
   const config = loadConfig();
   const auth = resolveCredential();
   const client = new GraphClient(auth.credential, config);
+  return { client, describeAuth: auth.describe, readOnly: config.readOnly, config };
+}
+
+export function buildServer(): BuiltServer {
+  const { client, describeAuth, readOnly, config } = createContext();
 
   const server = new McpServer(
     { name: SERVER_NAME, version: SERVER_VERSION },
@@ -42,7 +55,7 @@ export function buildServer(): BuiltServer {
     },
   );
 
-  const ctx: ToolContext = { server, client, readOnly: config.readOnly };
+  const ctx: ToolContext = { server, client, readOnly };
 
   registerBalanceTools(ctx);
   registerPolicyTools(ctx);
@@ -51,5 +64,5 @@ export function buildServer(): BuiltServer {
   registerUsageReportTools(ctx);
   registerRawTool(ctx);
 
-  return { server, describeAuth: auth.describe, readOnly: config.readOnly };
+  return { server, describeAuth, readOnly };
 }
