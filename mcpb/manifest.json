@@ -6,7 +6,7 @@
   "description": "Govern and observe Microsoft 365 Copilot credit consumption via the Copilot Cost Management API.",
   "long_description": "An MCP server for the Microsoft 365 Copilot Cost Management API (Microsoft Graph beta). Read tenant and per-user credit balances, manage spending policies and their services/alerts, review credit requests, and pull usage reports by user, group, service, and funding class. Multi-tenant: register multiple tenants and switch between them from the chat (list_tenants / add_tenant / use_tenant). Sign in from the chat with the start_login tool — no terminal required.",
   "author": {
-    "name": "DontPing"
+    "name": "Andreas Bergman"
   },
   "license": "MIT",
   "keywords": ["microsoft-365", "copilot", "cost-management", "finops", "microsoft-graph"],
