@@ -181,7 +181,12 @@ npm run typecheck   # tsc --noEmit
 npm run build       # compile to dist/
 npm run dev         # watch mode (tsx)
 npm start           # run the built server
+bash scripts/pack-mcpb.sh   # build the .mcpb Desktop Extension bundle
 ```
+
+### Releases
+
+The [`Release MCPB`](.github/workflows/release-mcpb.yml) GitHub Action cuts a release automatically **when `package.json`'s version changes** on the default branch — bump the version, commit, and it builds the `.mcpb` + `.tgz`, tags `v<version>`, and publishes a GitHub Release with both attached. It's idempotent (a version that's already released is skipped) and can also be run on demand from the Actions tab (**Run workflow**). It needs GitHub Actions enabled for the repo; it uses the built-in `GITHUB_TOKEN` (no secrets to configure).
 
 ## References
 

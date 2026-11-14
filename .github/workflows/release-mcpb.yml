@@ -1,0 +1,76 @@
+name: Release MCPB
+
+# Cuts a GitHub Release whenever the version in package.json changes on the
+# default branch (i.e. the commit that bumps the version), and can also be run
+# on demand. The release is tagged v<version> and carries the built .mcpb
+# (Claude Desktop Extension) and .tgz (npm package). It is idempotent: if a
+# release for the current version already exists, the run is a no-op.
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - claude/gifted-knuth-dpon3b
+    paths:
+      - package.json
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-mcpb
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Read version
+        id: ver
+        run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Check whether this release already exists
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "v${{ steps.ver.outputs.version }}" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Release v${{ steps.ver.outputs.version }} already exists — skipping."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install dependencies
+        if: steps.check.outputs.exists == 'false'
+        run: npm ci
+
+      - name: Build artifacts (.tgz + .mcpb)
+        if: steps.check.outputs.exists == 'false'
+        run: |
+          npm pack
+          bash scripts/pack-mcpb.sh
+
+      - name: Create GitHub Release
+        if: steps.check.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          V="${{ steps.ver.outputs.version }}"
+          gh release create "v$V" \
+            "dontping-copilot-cost-management-mcp-$V.mcpb" \
+            "dontping-copilot-cost-management-mcp-$V.tgz" \
+            --title "v$V" \
+            --generate-notes \
+            --target "${{ github.sha }}"
