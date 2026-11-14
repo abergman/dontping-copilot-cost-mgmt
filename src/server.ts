@@ -14,6 +14,7 @@ import { registerPolicyConfigTools } from "./tools/policyConfig.js";
 import { registerCreditRequestTools } from "./tools/creditRequests.js";
 import { registerUsageReportTools } from "./tools/usageReports.js";
 import { registerRawTool } from "./tools/raw.js";
+import { registerAuthTools } from "./tools/auth.js";
 
 export interface ServerContext {
   client: GraphClient;
@@ -57,8 +58,9 @@ export function buildServer(): BuiltServer {
     },
   );
 
-  const ctx: ToolContext = { server, client, readOnly };
+  const ctx: ToolContext = { server, client, auth, scope: config.scope, readOnly };
 
+  registerAuthTools(ctx);
   registerBalanceTools(ctx);
   registerPolicyTools(ctx);
   registerPolicyConfigTools(ctx);

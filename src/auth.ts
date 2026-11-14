@@ -35,7 +35,16 @@ export interface DeviceCodePrompt {
 
 export const NOT_SIGNED_IN =
   "Not signed in to Microsoft (no cached credentials, or the session expired). " +
-  "Run `copilot-cost-management-mcp login` in a terminal to sign in, then retry.";
+  "Call the `start_login` tool to sign in from here (it returns a sign-in URL + code), " +
+  "or run `copilot-cost-management-mcp login` in a terminal; then retry.";
+
+/** Status of an in-progress or last in-chat login attempt. */
+export interface LoginStatus {
+  signedIn: boolean;
+  username?: string;
+  pending: boolean;
+  last?: { status: "succeeded" | "failed"; username?: string; error?: string };
+}
 
 /** Thrown by the device-code credential when no usable cached token exists. */
 export class NotSignedInError extends Error {
@@ -64,6 +73,11 @@ function normalizeScopes(scopes: string | string[]): string[] {
  */
 export class PersistentDeviceCodeCredential implements TokenCredential {
   private readonly pca: PublicClientApplication;
+
+  /** In-flight in-chat login (device code issued, awaiting the user). */
+  private pending?: { prompt: DeviceCodePrompt; completion: Promise<AuthenticationResult | null> };
+  /** Outcome of the most recent in-chat login attempt. */
+  private lastResult?: { status: "succeeded" | "failed"; username?: string; error?: string };
 
   constructor(tenantId: string, clientId: string, readonly cacheFile: string) {
     this.pca = new PublicClientApplication({
@@ -117,6 +131,74 @@ export class PersistentDeviceCodeCredential implements TokenCredential {
       scopes: normalizeScopes(scopes),
       deviceCodeCallback: onPrompt,
     });
+  }
+
+  /**
+   * Start an interactive device-code login WITHOUT blocking: returns the
+   * verification URL + user code as soon as the device code is issued, while the
+   * flow keeps polling in the background and persists the token on success.
+   * Safe to call again while one is pending — it returns the existing prompt.
+   */
+  async beginLogin(
+    scopes: string | string[],
+  ): Promise<{ prompt: DeviceCodePrompt; alreadyPending: boolean }> {
+    if (this.pending) return { prompt: this.pending.prompt, alreadyPending: true };
+
+    let onPromptResolve!: (p: DeviceCodePrompt) => void;
+    const promptReady = new Promise<DeviceCodePrompt>((resolve) => {
+      onPromptResolve = resolve;
+    });
+
+    const completion = this.login(scopes, (info) =>
+      onPromptResolve({
+        userCode: info.userCode,
+        verificationUri: info.verificationUri,
+        message: info.message,
+      }),
+    );
+
+    // Record the outcome and clear the pending slot when it finishes.
+    completion
+      .then((r) => {
+        this.lastResult = { status: "succeeded", username: r?.account?.username };
+      })
+      .catch((e) => {
+        this.lastResult = { status: "failed", error: e instanceof Error ? e.message : String(e) };
+      })
+      .finally(() => {
+        this.pending = undefined;
+      });
+
+    // Resolve once the code is issued, or reject if the flow fails first.
+    const prompt = await new Promise<DeviceCodePrompt>((resolve, reject) => {
+      let settled = false;
+      void promptReady.then((p) => {
+        settled = true;
+        resolve(p);
+      });
+      completion.then(
+        () => {
+          if (!settled) reject(new Error("Login finished before a device code was issued."));
+        },
+        (e) => {
+          if (!settled) reject(e);
+        },
+      );
+    });
+
+    this.pending = { prompt, completion };
+    return { prompt, alreadyPending: false };
+  }
+
+  /** Current sign-in / in-chat-login status. */
+  async loginStatus(): Promise<LoginStatus> {
+    const username = await this.signedInAs();
+    return {
+      signedIn: Boolean(username),
+      username,
+      pending: Boolean(this.pending),
+      last: this.lastResult,
+    };
   }
 
   /** The signed-in account's username, if any. */

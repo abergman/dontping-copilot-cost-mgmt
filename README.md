@@ -66,7 +66,9 @@ The server talks to Microsoft Graph and needs a token carrying the relevant `Cop
 
 1. **Raw bearer token** — `GRAPH_ACCESS_TOKEN`. Easiest for testing; not refreshed, so it expires in ~an hour.
 2. **App-only (client credentials)** — `AZURE_TENANT_ID` + `AZURE_CLIENT_ID` + `AZURE_CLIENT_SECRET`. Only works for the operations that support **application** permissions: `get_tenant_credit_balance` and the service/funding usage reports.
-3. **Delegated (device code, persistent)** — `AZURE_TENANT_ID` + `AZURE_CLIENT_ID` (no secret). Works for **all** operations (most are delegated-only). Sign in once with `copilot-cost-management-mcp login`; the token is cached on disk and reused across restarts (no re-prompting) until the refresh token expires. The signed-in admin must hold the required directory role (Billing/AI/Global Administrator, etc.).
+3. **Delegated (device code, persistent)** — `AZURE_TENANT_ID` + `AZURE_CLIENT_ID` (no secret). Works for **all** operations (most are delegated-only). Sign in once — either from a terminal (`copilot-cost-management-mcp login`) **or from inside Claude** by invoking the `start_login` tool (it returns a URL + code in the chat). Either way the token is cached on disk and reused across restarts (no re-prompting) until the refresh token expires. The signed-in admin must hold the required directory role (Billing/AI/Global Administrator, etc.).
+
+   In device-code mode the server also exposes `start_login`, `check_login_status`, and `sign_out` as tools, so an agent can authenticate without touching a terminal.
 
 See [`.env.example`](./.env.example) for every variable, plus optional overrides (`GRAPH_BASE_URL`, `GRAPH_API_VERSION`, `GRAPH_SCOPE`).
 

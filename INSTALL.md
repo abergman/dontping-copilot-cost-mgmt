@@ -136,6 +136,8 @@ To sign out and delete the cached token: `copilot-cost-management-mcp logout`.
 
 3. **Fully quit and reopen Claude Desktop.** The Copilot Cost Management tools now appear in the tool picker. With device-code auth, as long as you ran `login` first, the server picks up the cached token silently — no prompt.
 
+> **Prefer not to use a terminal?** Skip the `login` step and sign in from the chat instead: ask Claude to run **`start_login`**. It replies with a Microsoft URL and a short code — open the URL, enter the code, sign in, then ask Claude to continue. `check_login_status` confirms you're signed in, and `sign_out` clears the token to switch accounts.
+
 > If `command: "copilot-cost-management-mcp"` isn't found (Claude Desktop may not use your shell's PATH), use the absolute path — run `which copilot-cost-management-mcp` (macOS/Linux) or `where copilot-cost-management-mcp` (Windows) and put that in `command`, or use `"command": "node", "args": ["/full/path/to/dist/index.js"]`.
 
 ### Claude Code
