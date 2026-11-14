@@ -21,6 +21,10 @@ export interface Config {
   tokenCacheFile?: string;
   /** Directory for the persistent delegated-token cache. */
   cacheDir: string;
+  /** Port for the Streamable-HTTP server mode. */
+  httpPort: number;
+  /** Bind host for the HTTP server (default "::" for dual-stack IPv4+IPv6). */
+  httpHost: string;
 }
 
 function envFlag(value: string | undefined): boolean {
@@ -37,9 +41,22 @@ export function loadConfig(): Config {
   const cacheDir =
     process.env.COPILOT_COST_MGMT_CACHE_DIR?.trim() ||
     join(homedir(), ".copilot-cost-management-mcp");
+  const httpPort = Number(
+    process.env.COPILOT_COST_MGMT_HTTP_PORT || process.env.PORT || 3000,
+  );
+  const httpHost = process.env.COPILOT_COST_MGMT_HTTP_HOST?.trim() || "::";
 
-  return { graphBaseUrl, apiVersion, scope, readOnly, tokenCacheFile, cacheDir };
+  return {
+    graphBaseUrl,
+    apiVersion,
+    scope,
+    readOnly,
+    tokenCacheFile,
+    cacheDir,
+    httpPort: Number.isFinite(httpPort) && httpPort > 0 ? httpPort : 3000,
+    httpHost,
+  };
 }
 
 export const SERVER_NAME = "copilot-cost-management";
-export const SERVER_VERSION = "0.4.0";
+export const SERVER_VERSION = "0.5.0";

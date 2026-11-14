@@ -38,6 +38,7 @@ Then point your MCP client at `node dist/index.js` (stdio transport) with creden
 
 ```
 copilot-cost-management-mcp            run the MCP server over stdio (default)
+copilot-cost-management-mcp http        run as a Streamable-HTTP server (for Copilot Cowork/Studio)
 copilot-cost-management-mcp login      device-code sign-in; caches the token (device-code auth)
 copilot-cost-management-mcp logout     remove the cached token
 copilot-cost-management-mcp --check    verify credentials + reach the API, then exit
@@ -149,6 +150,25 @@ The per-tenant `clientId` overrides the shared `AZURE_CLIENT_ID` for that tenant
 - `remove_tenant` — unregister (sign out first with `sign_out` to clear its token)
 
 CLI equivalents: `copilot-cost-management-mcp tenants`, `… login [tenantId]`, `… logout [tenantId]`, `… --check [tenantId]`.
+
+## Use from Microsoft Copilot (Cowork / Studio)
+
+Microsoft Copilot hosts (Copilot **Cowork** and Copilot **Studio**) connect to MCP servers only over **remote Streamable HTTP (HTTPS)** — not stdio. This server can run in HTTP mode, and you can point Copilot at it:
+
+```bash
+copilot-cost-management-mcp http --port 3000       # Streamable HTTP at http://localhost:3000/mcp
+```
+
+Since Copilot is a cloud service and can't reach `localhost`, expose the local port over HTTPS with a **dev tunnel** (which terminates TLS and relays to your local HTTP server):
+
+```bash
+devtunnel port create cost-mgmt -p 3000 --protocol http   # --protocol http describes the LOCAL service
+devtunnel host cost-mgmt
+```
+
+Use the tunnel's HTTPS URL + `/mcp` as the connector URL. For **Copilot Studio**, add it under the agent's **Tools → Add a tool → Model Context Protocol**. For **Copilot Cowork**, package it as a plugin — a ready scaffold is in [`cowork-plugin/`](./cowork-plugin/) (`.claude-plugin/plugin.json` + `.mcp.json`), with step-by-step instructions.
+
+Sign in first (`copilot-cost-management-mcp login`, or set `AZURE_CLIENT_SECRET` for app-only) so the server has a token. **The HTTP endpoint is unauthenticated** — only expose it through a tunnel you trust, stop it when done, and consider read-only mode while testing. For anything shared or published, host the server on a stable HTTPS endpoint (Azure App Service/Functions/Container Apps) rather than a dev tunnel.
 
 ## Read-only mode
 

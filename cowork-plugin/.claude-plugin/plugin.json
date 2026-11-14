@@ -1,0 +1,8 @@
+{
+  "name": "copilot-cost-management",
+  "version": "0.5.0",
+  "description": "Govern and observe Microsoft 365 Copilot credit consumption via the Copilot Cost Management API — balances, spending policies, credit requests, and usage reports.",
+  "author": {
+    "name": "Andreas Bergman"
+  }
+}

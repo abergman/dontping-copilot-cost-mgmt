@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "copilot-cost-management": {
+      "type": "http",
+      "url": "https://REPLACE-WITH-YOUR-DEVTUNNEL-URL/mcp"
+    }
+  }
+}

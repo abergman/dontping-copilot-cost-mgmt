@@ -21,13 +21,21 @@ import { SERVER_NAME, SERVER_VERSION } from "./config.js";
 import { GraphError } from "./graph.js";
 import { NotSignedInError, PersistentDeviceCodeCredential } from "./auth.js";
 import { NoActiveTenantError } from "./tenants.js";
+import { startHttpServer } from "./http.js";
 import { maybeLoadEnvFile } from "./env.js";
+
+/** Read `--flag value` from argv, if present. */
+function getFlag(name: string): string | undefined {
+  const i = process.argv.indexOf(name);
+  return i >= 0 ? process.argv[i + 1] : undefined;
+}
 
 function printHelp(): void {
   process.stdout.write(
     `${SERVER_NAME} v${SERVER_VERSION} — MCP server for the Microsoft 365 Copilot Cost Management API\n\n` +
       `Usage:\n` +
       `  copilot-cost-management-mcp                  Run the MCP server over stdio (for your MCP client)\n` +
+      `  copilot-cost-management-mcp http [--port N]  Run as a Streamable-HTTP server (for Copilot Cowork/Studio via a tunnel)\n` +
       `  copilot-cost-management-mcp tenants          List configured tenants and the active one\n` +
       `  copilot-cost-management-mcp login [tenant]   Device-code sign-in (caches the token) for a tenant\n` +
       `  copilot-cost-management-mcp logout [tenant]  Remove a tenant's cached token\n` +
@@ -74,6 +82,44 @@ async function runServer(): Promise<void> {
   process.stderr.write(
     `[${SERVER_NAME} v${SERVER_VERSION}] ready on stdio — ${tenants} tenant(s); ${status}\n`,
   );
+}
+
+async function activeTenantStatus(ctx: ServerContext): Promise<string> {
+  const active = ctx.manager.activeEntry();
+  if (!active) return "no active tenant (use add_tenant / use_tenant)";
+  const resolved = ctx.manager.resolvedFor(active.id);
+  let s = `active tenant ${active.label ?? active.id} — ${resolved.mode}`;
+  if (resolved.credential instanceof PersistentDeviceCodeCredential) {
+    const who = await resolved.credential.signedInAs().catch(() => undefined);
+    s += who ? `, signed in as ${who}` : " (NOT signed in — run `login`)";
+  }
+  return s;
+}
+
+async function runHttp(): Promise<void> {
+  const ctx = createContext();
+  const port = Number(getFlag("--port") ?? ctx.config.httpPort);
+  const host = getFlag("--host") ?? ctx.config.httpHost;
+  const handle = await startHttpServer(port, host);
+  const status = await activeTenantStatus(ctx);
+
+  process.stderr.write(
+    `[${SERVER_NAME} v${SERVER_VERSION}] Streamable-HTTP server listening\n` +
+      `  Local MCP endpoint:  ${handle.url}\n` +
+      `  ${status}\n\n` +
+      `To use from Microsoft Copilot (Cowork / Studio), expose this over HTTPS with a dev tunnel:\n` +
+      `  devtunnel port create <name> -p ${port} --protocol http\n` +
+      `  devtunnel host <name>\n` +
+      `then use the tunnel's HTTPS URL (ending in ${"/mcp"}) as the connector's mcpServerUrl.\n` +
+      `This endpoint is unauthenticated — only expose it through a tunnel you trust. Ctrl+C to stop.\n`,
+  );
+
+  const stop = async () => {
+    await handle.close();
+    process.exit(0);
+  };
+  process.on("SIGINT", stop);
+  process.on("SIGTERM", stop);
 }
 
 function promptBox(info: { verificationUri: string; userCode: string; message: string }): string {
@@ -213,6 +259,10 @@ async function main(): Promise<void> {
   if (loaded) process.stderr.write(`[config] loaded env from ${loaded}\n`);
 
   switch (arg) {
+    case "http":
+    case "serve":
+      await runHttp();
+      return;
     case "tenants":
       runTenants();
       return;
